@@ -1,33 +1,33 @@
-#XMage Version: 1.4.45v1
-# Based on official OpenJDK Docker library image
+# Builds the latest beta from http://xmage.today
+# Based on https://github.com/LunarNightShade/docker-xmage-openjdk
 FROM openjdk:8-jre-alpine
 
 # Build and config ENVs
 
 ENV JAVA_MIN_MEMORY=1024M \
-	JAVA_MAX_MEMORY=1536M \
-    GLIBC_VERSION=2.27-r0 \
-	GLIBC_REPO=https://github.com/sgerrand/alpine-pkg-glibc \
-    LANG=C.UTF-8 \
-    XMAGE_DOCKER_SERVER_ADDRESS="0.0.0.0" \
-    XMAGE_DOCKER_PORT="17171" \
-    XMAGE_DOCKER_SECONDARY_BIND_PORT="17179" \
-    XMAGE_DOCKER_MAX_SECONDS_IDLE="600" \
-    XMAGE_DOCKER_AUTHENTICATION_ACTIVATED="false" \
-    XMAGE_DOCKER_SERVER_NAME="mage-server" \
-	XMAGE_DOCKER_ADMIN_PASSWORD="hunter2" \
-	XMAGE_DOCKER_MAX_GAME_THREADS="10" \
-	XMAGE_DOCKER_MIN_USERNAME_LENGTH="3" \
-	XMAGE_DOCKER_MAX_USERNAME_LENGTH="14" \
-	XMAGE_DOCKER_MIN_PASSWORD_LENGTH="8" \
-	XMAGE_DOCKER_MAX_PASSWORD_LENGTH="100" \
-	XMAGE_DOCKER_MAILGUN_API_KEY="X" \
-	XMAGE_DOCKER_MAILGUN_DOMAIN="X"
+  JAVA_MAX_MEMORY=1536M \
+  GLIBC_VERSION=2.27-r0 \
+  GLIBC_REPO=https://github.com/sgerrand/alpine-pkg-glibc \
+  LANG=C.UTF-8 \
+  XMAGE_DOCKER_SERVER_ADDRESS="0.0.0.0" \
+  XMAGE_DOCKER_PORT="17171" \
+  XMAGE_DOCKER_SECONDARY_BIND_PORT="17179" \
+  XMAGE_DOCKER_MAX_SECONDS_IDLE="600" \
+  XMAGE_DOCKER_AUTHENTICATION_ACTIVATED="false" \
+  XMAGE_DOCKER_SERVER_NAME="mage-server" \
+  XMAGE_DOCKER_ADMIN_PASSWORD="hunter2" \
+  XMAGE_DOCKER_MAX_GAME_THREADS="10" \
+  XMAGE_DOCKER_MIN_USERNAME_LENGTH="3" \
+  XMAGE_DOCKER_MAX_USERNAME_LENGTH="14" \
+  XMAGE_DOCKER_MIN_PASSWORD_LENGTH="8" \
+  XMAGE_DOCKER_MAX_PASSWORD_LENGTH="100" \
+  XMAGE_DOCKER_MAILGUN_API_KEY="X" \
+  XMAGE_DOCKER_MAILGUN_DOMAIN="X"
 
 #RUN based on anapsix/docker-alpine-java:8u172b11_server-jre
 RUN set -ex && \
     apk -U --no-cache upgrade && \
-    apk --no-cache add --virtual dl-deps curl jq && \
+    apk --no-cache add --virtual dl-deps curl jq rsync && \
     apk --no-cache add libstdc++ ca-certificates bash && \
     for pkg in glibc-${GLIBC_VERSION} glibc-bin-${GLIBC_VERSION} glibc-i18n-${GLIBC_VERSION}; do curl -sSL ${GLIBC_REPO}/releases/download/${GLIBC_VERSION}/${pkg}.apk -o /tmp/${pkg}.apk; done && \
     apk add --allow-untrusted /tmp/*.apk && \
@@ -35,14 +35,19 @@ RUN set -ex && \
     ( /usr/glibc-compat/bin/localedef --force --inputfile POSIX --charmap UTF-8 C.UTF-8 || true ) && \
     echo "export LANG=C.UTF-8" > /etc/profile.d/locale.sh && \
     /usr/glibc-compat/sbin/ldconfig /lib /usr/glibc-compat/lib
- 
-#Following code based on Dockerfile from goesta/docker-xmage-alpine 
+
 WORKDIR /xmage
 
-RUN curl --silent --show-error http://xmage.de/xmage/config.json | jq '.XMage.location' | xargs curl -# -L > xmage.zip \
- && unzip xmage.zip -x "mage-client*" \
- && rm xmage.zip \
- && apk del curl jq
+RUN curl --silent --show-error http://xmage.today/ | \
+    grep "Download full BETA client" | \
+    grep -Eo "files/[a-zA-Z0-9./?=_%:-]*" | \
+    (echo -n "http://xmage.today/" && cat) | \
+    xargs curl -# -L > xmage.zip \
+    && unzip xmage.zip "xmage/mage-server/*" \
+    && rm xmage.zip \
+    && rsync -avP xmage/mage-server . \
+    && rm -rf xmage \
+    && apk del curl jq rsync
 
 COPY dockerStartServer.sh /xmage/mage-server/
 
